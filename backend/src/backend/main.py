@@ -5,8 +5,14 @@ from starlette.middleware.sessions import SessionMiddleware
 from backend.config import settings
 from backend.auth.routes import router as auth_router
 
+from backend.database.connection import Base, engine
+from backend.database import models
+
 
 app = FastAPI()
+
+# Create database tables defined by our SQLAlchemy models.
+Base.metadata.create_all(bind=engine)
 
 # SessionMiddleware gives Authlib a server-side mechanism for
 # maintaining OAuth state between the login redirect and callback.
