@@ -1,5 +1,6 @@
 
 from fastapi import Depends, FastAPI
+from fastapi.responses import FileResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from backend.config import settings
@@ -34,4 +35,15 @@ def health():
 def hello(user: models.User = Depends(require_auth)):
     return {
         "message": f"Hello, {user.email}!"
+    }
+
+@app.get("/")
+def frontend():
+    return FileResponse("src/backend/frontend/index.html")
+
+@app.get("/api/me")
+def me(user: models.User = Depends(require_auth)):
+    return {
+        "email": user.email,
+        "name": user.name,
     }

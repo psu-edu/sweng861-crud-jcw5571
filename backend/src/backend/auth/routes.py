@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from backend.auth.oauth import oauth
@@ -61,11 +62,4 @@ async def auth_callback(
     # Store our local user ID in the authenticated session.
     request.session["user_id"] = user.id
 
-    return {
-        "message": "Google authentication successful",
-        "user": {
-            "id": user.id,
-            "email": user.email,
-            "name": user.name,
-        },
-    }
+    return RedirectResponse(url="/")
