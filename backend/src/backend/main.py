@@ -1,9 +1,10 @@
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 
 from backend.config import settings
 from backend.auth.routes import router as auth_router
+from backend.auth.dependencies import require_auth
 
 from backend.database.connection import Base, engine
 from backend.database import models
@@ -28,3 +29,9 @@ app.include_router(auth_router)
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.get("/api/hello")
+def hello(user: models.User = Depends(require_auth)):
+    return {
+        "message": f"Hello, {user.email}!"
+    }

@@ -5,21 +5,10 @@ from sqlalchemy.orm import Session
 
 from backend.auth.oauth import oauth
 from backend.database import models
-from backend.database.connection import SessionLocal
+from backend.database.connection import get_db
 
 
 router = APIRouter()
-
-
-def get_db():
-    # Create a database session for one request.
-    db = SessionLocal()
-
-    try:
-        yield db
-    finally:
-        db.close()
-
 
 @router.get("/auth/login")
 async def login(request: Request):
@@ -68,6 +57,9 @@ async def auth_callback(
 
     db.commit()
     db.refresh(user)
+
+    # Store our local user ID in the authenticated session.
+    request.session["user_id"] = user.id
 
     return {
         "message": "Google authentication successful",

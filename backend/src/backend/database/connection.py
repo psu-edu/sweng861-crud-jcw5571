@@ -24,3 +24,13 @@ SessionLocal = sessionmaker(
 # Base is the parent class for our database models.
 class Base(DeclarativeBase):
     pass
+
+
+def get_db():
+    # Create a database session for one request.
+    db = SessionLocal()
+
+    try:
+        yield db
+    finally:
+        db.close()
