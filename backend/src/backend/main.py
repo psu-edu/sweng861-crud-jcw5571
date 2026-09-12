@@ -10,6 +10,7 @@ from backend.auth.dependencies import require_auth
 from backend.database.connection import Base, engine
 from backend.database import models
 
+from backend.tasks.routes import router as tasks_router
 
 app = FastAPI()
 
@@ -26,6 +27,8 @@ app.add_middleware(
 # Add authentication-related routes to the application.
 app.include_router(auth_router)
 
+# Add task-related routes to the application.
+app.include_router(tasks_router)
 
 @app.get("/health")
 def health():
