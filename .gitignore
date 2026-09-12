@@ -219,3 +219,7 @@ __marimo__/
 
 # SQLite database file
 app.db
+
+# Certificate files
+certs/*
+!certs/.gitkeep

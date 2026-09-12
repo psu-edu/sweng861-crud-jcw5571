@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from backend.auth.dependencies import require_auth
+from backend.auth.dependencies import require_jwt
 from backend.database import models
 from backend.database.connection import get_db
 from backend.tasks import service
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 )
 def create_task(
     task_data: TaskCreate,
-    user: models.User = Depends(require_auth),
+    user: models.User = Depends(require_jwt),
     db: Session = Depends(get_db),
 ):
     return service.create_task(db, user, task_data)
@@ -29,7 +29,7 @@ def create_task(
     response_model=list[TaskResponse],
 )
 def get_tasks(
-    user: models.User = Depends(require_auth),
+    user: models.User = Depends(require_jwt),
     db: Session = Depends(get_db),
 ):
     # Only return tasks belonging to the authenticated user.
@@ -42,7 +42,7 @@ def get_tasks(
 )
 def get_task(
     task_id: int,
-    user: models.User = Depends(require_auth),
+    user: models.User = Depends(require_jwt),
     db: Session = Depends(get_db),
 ):
     # The service checks both the task ID and the authenticated user's ownership.
@@ -64,7 +64,7 @@ def get_task(
 def update_task(
     task_id: int,
     task_data: TaskUpdate,
-    user: models.User = Depends(require_auth),
+    user: models.User = Depends(require_jwt),
     db: Session = Depends(get_db),
 ):
     # The service only updates tasks owned by the authenticated user.
@@ -76,6 +76,12 @@ def update_task(
             detail="Task not found",
         )
 
+    if not task_data.model_dump(exclude_none=True):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one field must be provided for update.",
+        )
+
     return task
 
 
@@ -85,7 +91,7 @@ def update_task(
 )
 def delete_task(
     task_id: int,
-    user: models.User = Depends(require_auth),
+    user: models.User = Depends(require_jwt),
     db: Session = Depends(get_db),
 ):
     # The service verifies ownership before deleting the task.
