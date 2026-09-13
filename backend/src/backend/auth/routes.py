@@ -5,6 +5,8 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from backend.auth.oauth import oauth
+from backend.auth.jwt import create_access_token
+from backend.auth.dependencies import require_auth, require_jwt
 from backend.database import models
 from backend.database.connection import get_db
 
@@ -63,3 +65,20 @@ async def auth_callback(
     request.session["user_id"] = user.id
 
     return RedirectResponse(url="/")
+
+@router.get("/auth/token")
+def get_token(user: models.User = Depends(require_auth)):
+    """Return a JWT for the currently authenticated user."""
+
+    return {
+        "access_token": create_access_token(user.id),
+        "token_type": "bearer",
+    }
+
+@router.get("/auth/token-test")
+def token_test(user: models.User = Depends(require_jwt)):
+    """Verify that the supplied JWT represents a valid local user."""
+
+    return {
+        "message": f"JWT authentication successful for {user.email}."
+    }
