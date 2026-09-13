@@ -11,7 +11,10 @@ class Settings(BaseSettings):
 
     # Used to sign and verify JWT access tokens.
     jwt_secret: str
-    
+
+    # LLM provider API key
+    cohere_api_key: str
+
     # Load development configuration from .env file
     model_config = SettingsConfigDict(
         env_file=".env",

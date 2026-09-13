@@ -4,8 +4,14 @@ from sqlalchemy.orm import Session
 from backend.auth.dependencies import require_jwt
 from backend.database import models
 from backend.database.connection import get_db
+from backend.ai.cohere import CohereAPIError, CohereResponseError, generate_task
 from backend.tasks import service
-from backend.tasks.schemas import TaskCreate, TaskResponse, TaskUpdate
+from backend.tasks.schemas import (
+    TaskCreate,
+    TaskFromDescriptionRequest,
+    TaskResponse,
+    TaskUpdate,
+)
 
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
@@ -34,6 +40,46 @@ def get_tasks(
 ):
     # Only return tasks belonging to the authenticated user.
     return service.get_tasks(db, user)
+
+
+@router.post(
+    "/from-description",
+    response_model=TaskResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_task_from_description(
+    request: TaskFromDescriptionRequest,
+    user: models.User = Depends(require_jwt),
+    db: Session = Depends(get_db),
+):
+    # Convert the user's natural-language description into a validated
+    # TaskCreate object using the Cohere integration.
+    try:
+        task_data = generate_task(request.description)
+    except CohereAPIError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": "AI service unavailable",
+                "message": "The task-generation service is currently unavailable.",
+            },
+        )
+    except CohereResponseError:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "error": "Invalid AI response",
+                "message": "The task-generation service returned invalid data.",
+            },
+        )
+
+    # Use the existing task service so AI-created tasks follow the same
+    # ownership and persistence rules as manually created tasks.
+    return service.create_task(
+        db,
+        user,
+        task_data,
+    )
 
 
 @router.get(
@@ -67,6 +113,13 @@ def update_task(
     user: models.User = Depends(require_jwt),
     db: Session = Depends(get_db),
 ):
+    # Ensure that at least one field is provided for update.
+    if not task_data.model_dump(exclude_none=True):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one field must be provided for update.",
+        )
+
     # The service only updates tasks owned by the authenticated user.
     task = service.update_task(db, user, task_id, task_data)
 
@@ -74,12 +127,6 @@ def update_task(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Task not found",
-        )
-
-    if not task_data.model_dump(exclude_none=True):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least one field must be provided for update.",
         )
 
     return task

@@ -37,3 +37,9 @@ class TaskResponse(BaseModel):
     due_date: datetime | None
     created_at: datetime
     updated_at: datetime
+
+
+class TaskFromDescriptionRequest(BaseModel):
+    """Natural-language description used to generate a task."""
+
+    description: str = Field(min_length=1, max_length=5000)
