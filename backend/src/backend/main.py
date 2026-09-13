@@ -1,3 +1,4 @@
+import logging
 
 from fastapi import Depends, FastAPI
 from fastapi.responses import FileResponse
@@ -11,6 +12,11 @@ from backend.database.connection import Base, engine
 from backend.database import models
 
 from backend.tasks.routes import router as tasks_router
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 
 app = FastAPI()
 

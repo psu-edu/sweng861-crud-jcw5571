@@ -63,6 +63,7 @@ TASK_SCHEMA = {
 
 client = cohere.ClientV2(
     api_key=settings.cohere_api_key,
+    log_warning_experimental_features=False
 )
 
 def generate_task(description: str) -> TaskCreate:

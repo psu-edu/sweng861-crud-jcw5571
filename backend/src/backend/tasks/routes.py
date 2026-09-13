@@ -1,10 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from backend.auth.dependencies import require_jwt
 from backend.database import models
 from backend.database.connection import get_db
 from backend.ai.cohere import CohereAPIError, CohereResponseError, generate_task
+from backend.events.task_events import (
+    TaskCreated,
+    TaskDeleted,
+    TaskUpdated,
+    handle_task_created,
+    handle_task_deleted,
+    handle_task_updated,
+)
 from backend.tasks import service
 from backend.tasks.schemas import (
     TaskCreate,
@@ -24,10 +32,22 @@ router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 )
 def create_task(
     task_data: TaskCreate,
+    background_tasks: BackgroundTasks,
     user: models.User = Depends(require_jwt),
     db: Session = Depends(get_db),
 ):
-    return service.create_task(db, user, task_data)
+    task = service.create_task(db, user, task_data)
+    
+    # Publish the domain event after the task is successfully created.
+    event = TaskCreated(
+        task_id=task.id,
+        user_id=user.id,
+        title=task.title,
+        created_at=task.created_at,
+    )
+    background_tasks.add_task(handle_task_created, event)
+
+    return task
 
 
 @router.get(
@@ -49,9 +69,11 @@ def get_tasks(
 )
 def create_task_from_description(
     request: TaskFromDescriptionRequest,
+    background_tasks: BackgroundTasks,
     user: models.User = Depends(require_jwt),
     db: Session = Depends(get_db),
 ):
+
     # Convert the user's natural-language description into a validated
     # TaskCreate object using the Cohere integration.
     try:
@@ -72,14 +94,24 @@ def create_task_from_description(
                 "message": "The task-generation service returned invalid data.",
             },
         )
-
-    # Use the existing task service so AI-created tasks follow the same
-    # ownership and persistence rules as manually created tasks.
-    return service.create_task(
+    task = service.create_task(
         db,
         user,
         task_data,
     )
+
+    # Publish the domain event after the task is successfully created.
+    # Same as create_task endpoint.
+    event = TaskCreated(
+        task_id=task.id,
+        user_id=user.id,
+        title=task.title,
+        created_at=task.created_at,
+    )
+
+    background_tasks.add_task(handle_task_created, event)
+
+    return task
 
 
 @router.get(
@@ -110,6 +142,7 @@ def get_task(
 def update_task(
     task_id: int,
     task_data: TaskUpdate,
+    background_tasks: BackgroundTasks,
     user: models.User = Depends(require_jwt),
     db: Session = Depends(get_db),
 ):
@@ -129,6 +162,15 @@ def update_task(
             detail="Task not found",
         )
 
+    # Publish the domain event after the task is successfully updated.
+    event = TaskUpdated(
+        task_id=task.id,
+        user_id=user.id,
+        updated_at=task.updated_at,
+    )
+
+    background_tasks.add_task(handle_task_updated, event)
+
     return task
 
 
@@ -138,6 +180,7 @@ def update_task(
 )
 def delete_task(
     task_id: int,
+    background_tasks: BackgroundTasks,
     user: models.User = Depends(require_jwt),
     db: Session = Depends(get_db),
 ):
@@ -149,5 +192,14 @@ def delete_task(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Task not found",
         )
+
+    # Publish the domain event after the task is successfully deleted.
+    event = TaskDeleted(
+        task_id=task_id,
+        user_id=user.id,
+    )
+
+    background_tasks.add_task(handle_task_deleted, event)
+
 
     # Successful deletion returns 204 No Content, so no response body is needed.
